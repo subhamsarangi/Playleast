@@ -6,6 +6,7 @@
     <title>YouTube Playlist Video Analysis</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <style>
         body {
             background-color: #f8f9fa;
@@ -13,24 +14,52 @@
         .container {
             margin-top: 40px;
         }
-        .table-container {
-            margin-top: 30px;
-        }
         .error {
             color: red;
             font-weight: bold;
+        }
+        #site_name a{
+            font-weight: bold;
+            font-family: 'Courier New', Courier, monospace;
+            color: #270909;
+            text-decoration: none;
+        }
+        .playlist-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .playlist-card {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 1rem;
+            background-color: #f9f9f9;
+        }
+        .playlist-card a{
+            color: #a70d0d;
         }
     </style>
 </head>
 <body>
 <div class="container">
-    <h2 class="mb-4">YouTube Playlist Video Analysis</h2>
+    <h2 id="site_name" class="mb-4"><a href="/">YouTube Playlist Video Analysis</a></h2>
     <form id="playlistForm" class="row g-3 needs-validation" novalidate action="/analyze" method="post">
-        <div class="col-md-8">
+        <div class="col-md-6">
             <label for="playlistUrl" class="form-label">Playlist URL or ID</label>
-            <input type="text" class="form-control" id="playlistUrl" name="playlist_url" placeholder="Enter playlist URL or ID" required pattern="^(https?:\/\/)?(www\.)?youtube\.com\/.*(list=)?[a-zA-Z0-9_-]+$|^[a-zA-Z0-9_-]+$">
+            <input type="text" class="form-control" id="playlistUrl" name="playlist_url" 
+                   placeholder="Enter playlist URL or ID" required 
+                   pattern="^(https?:\/\/)?(www\.)?youtube\.com\/.*(list=)?[a-zA-Z0-9_-]+$|^[a-zA-Z0-9_-]+$"
+                   value="{{ playlist_url if playlist_url else '' }}">
             <div class="invalid-feedback">
                 Please enter a valid YouTube playlist URL or ID.
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="form-check mt-4">
+                <input type="checkbox" class="form-check-input" id="force_refresh" name="force_refresh">
+                <label class="form-check-label" for="force_refresh">Force refresh</label>
             </div>
         </div>
         <div class="col-md-4 d-flex align-items-end">
@@ -38,80 +67,38 @@
         </div>
     </form>
 
-    <div id="resultsContainer">
-        {% if top_videos and all_videos %}
-        <ul class="nav nav-tabs mt-5" id="videoTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="top-tab" data-bs-toggle="tab" data-bs-target="#top" type="button" role="tab">Top Videos</button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="all-tab" data-bs-toggle="tab" data-bs-target="#all" type="button" role="tab">All Videos</button>
-            </li>
-        </ul>
-        <div class="tab-content table-container" id="videoTabsContent">
-            <div class="tab-pane fade show active" id="top" role="tabpanel">
-                <table id="topTable" class="table table-striped table-bordered" style="width:100%">
-                    <thead>
-                        <tr>
-                            <th>Title</th>
-                            <th>Duration (min)</th>
-                            <th>Views</th>
-                            <th>Likes</th>
-                            <th>Like %</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for video in top_videos %}
-                        <tr>
-                            <td><a href="{{ video.url }}" target="_blank" class="fw-bold">{{ video.title }}</a></td>
-                            <td>{{ video.duration|round(2) }}</td>
-                            <td>{{ "{:,}".format(video.views) }}</td>
-                            <td>{{ "{:,}".format(video.likes) }}</td>
-                            <td>{{ video.like_percentage|round(2) }}%</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            <div class="tab-pane fade" id="all" role="tabpanel">
-                <table id="allTable" class="table table-striped table-bordered" style="width:100%">
-                    <thead>
-                        <tr>
-                            <th>Title</th>
-                            <th>Duration (min)</th>
-                            <th>Views</th>
-                            <th>Likes</th>
-                            <th>Like %</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for video in all_videos %}
-                        <tr>
-                            <td><a href="{{ video.url }}" target="_blank">{{ video.title }}</a></td>
-                            <td>{{ video.duration|round(2) }}</td>
-                            <td>{{ "{:,}".format(video.views) }}</td>
-                            <td>{{ "{:,}".format(video.likes) }}</td>
-                            <td>{{ video.like_percentage|round(2) }}%</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        {% endif %}
+    {% if error %}
+    <div class="alert alert-danger mt-4" role="alert">
+        {{ error }}
     </div>
+    {% endif %}
+
+    <br>
+    {%if playlists%}
+    <hr>
+    <h3>Existing Playlists</h3>
+    <div class="playlist-grid">
+        {% for playlist in playlists %}
+        <div class="playlist-card">
+            <h4><a href="/playlist/{{ playlist.id }}">{{ playlist["title"] }}</a></h4>
+            <p><strong>Channel:</strong> {{ playlist["channel_name"] }}</p>
+            <p><strong>Total Videos:</strong> {{ playlist["all_video_count"] }}</p>
+            <p><strong>Last Updated:</strong> {{ playlist["last_updated"] }}</p>
+            <p><strong>Last Analyzed:</strong> {{ playlist["last_analyzed"] }}</p>
+            <p><a href="{{ playlist.url }}" target="_blank">Open on YouTube</a></p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <script>
     (() => {
         'use strict';
         const form = document.querySelector('#playlistForm');
         const submitBtn = document.querySelector('#submitBtn');
-        const resultsContainer = document.querySelector('#resultsContainer');
 
         form.addEventListener('submit', event => {
             if (!form.checkValidity()) {
@@ -124,36 +111,10 @@
                 submitBtn.classList.remove('btn-primary');
                 submitBtn.classList.add('btn-secondary');
                 submitBtn.innerText = 'Analyzing...';
-
-                // Hide results while analyzing
-                if (resultsContainer) {
-                    resultsContainer.style.display = 'none';
-                }
             }
             form.classList.add('was-validated');
         });
     })();
-
-    document.addEventListener("DOMContentLoaded", function () {
-        if (document.querySelector("#topTable")) {
-            new DataTable("#topTable", {
-                responsive: true,
-                autoWidth: false,
-                pageLength: 10,
-                lengthMenu: [5, 10, 20, 50],
-                order: [[2, "desc"]]
-            });
-        }
-        if (document.querySelector("#allTable")) {
-            new DataTable("#allTable", {
-                responsive: true,
-                autoWidth: false,
-                pageLength: 10,
-                lengthMenu: [5, 10, 20, 50],
-                order: [[2, "desc"]]
-            });
-        }
-    });
 </script>
 </body>
 </html>
