@@ -1,7 +1,11 @@
+import os
+
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+import requests
+from dotenv import load_dotenv
 
 from youtube_analysis import get_or_analyze_playlist, extract_playlist_id, get_playlists
 
@@ -10,10 +14,21 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+load_dotenv()
+
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     playlists = get_playlists()
+    # URL = "http://127.0.0.1:8001/track/api/receive-playlists"
+    URL = os.environ.get("REMOTE_SERVER_URL")
+    try:
+        for pl in playlists:
+            response = requests.post(URL, json=pl)
+            response.raise_for_status()
+    except requests.RequestException as api_error:
+        print(f"Error sending playlists to API: {api_error}")
+
     return templates.TemplateResponse(
         "index.html", {"request": request, "playlists": playlists}
     )

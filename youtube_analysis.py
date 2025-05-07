@@ -1,10 +1,13 @@
 import re
+import datetime
+
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
 import isodate
 import pandas as pd
+
 from database import Playlist, Video, init_db, get_session
-import datetime
+
 
 # Set up API client
 API_SERVICE_NAME = "youtube"
@@ -325,18 +328,34 @@ def get_playlists():
         existing_playlists = (
             session.query(Playlist).order_by(Playlist.last_updated.desc()).all()
         )
-        existing_playlist_info = [
-            {
-                "id": playlist.id,
-                "title": playlist.title,
-                "channel_name": playlist.channel_name,
-                "all_video_count": playlist.video_count,
-                "url": playlist.url,
-                "last_updated": playlist.last_updated.strftime("%Y-%m-%d %H:%M"),
-                "last_analyzed": playlist.last_analyzed.strftime("%Y-%m-%d %H:%M"),
-            }
-            for playlist in existing_playlists
-        ]
+        existing_playlist_info = []
+        for playlist in existing_playlists:
+            all_videos = [
+                {
+                    "title": video.title,
+                    "duration": video.duration,
+                    "views": video.views,
+                    "likes": video.likes,
+                    "like_percentage": video.like_percentage,
+                    "url": video.url,
+                    "is_top": video.is_top,
+                }
+                for video in playlist.videos
+            ]
+
+            existing_playlist_info.append(
+                {
+                    "id": playlist.id,
+                    "title": playlist.title,
+                    "channel_name": playlist.channel_name,
+                    "all_video_count": playlist.video_count,
+                    "url": playlist.url,
+                    "last_updated": playlist.last_updated.strftime("%Y-%m-%d %H:%M"),
+                    "last_analyzed": playlist.last_analyzed.strftime("%Y-%m-%d %H:%M"),
+                    "all_videos": all_videos,
+                }
+            )
+
         return existing_playlist_info
     except Exception as e:
         try:

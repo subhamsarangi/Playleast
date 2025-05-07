@@ -4,7 +4,7 @@
 - Install python 
 - [Optional] Install virtual environment package like poetry
 - [Optional] Create a virtual environment
-- Install the Dependencies: `google-api-python-client google-auth-oauthlib google-auth-httplib2 pandas xlsxwriter isodate fastapi uvicorn jinja2 python-multipart`
+- Install the Dependencies: `google-api-python-client google-auth-oauthlib google-auth-httplib2 pandas xlsxwriter isodate fastapi uvicorn jinja2 python-multipart sqlalchemy requests`
 
 ## Google Cloud Console
 - Go to: https://console.cloud.google.com/
