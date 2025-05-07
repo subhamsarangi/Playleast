@@ -24,3 +24,7 @@
 <img src="homepage1.png" width="600">
 
 <img src="homepage2.png" width="600">
+
+## Todo:
+- add time information and sorting feature
+- add loader

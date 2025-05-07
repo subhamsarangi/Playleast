@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     create_engine,
     DateTime,
+    Index,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
@@ -39,12 +40,17 @@ class Video(Base):
     id = Column(String, primary_key=True)
     playlist_id = Column(String, ForeignKey("playlists.id"))
     title = Column(String)
+    channel_name = Column(String)
+    upload_date = Column(DateTime)
     duration = Column(Float)  # in minutes
     views = Column(Integer)
     likes = Column(Integer)
     like_percentage = Column(Float)
     url = Column(String)
     is_top = Column(Boolean, default=False)
+    position = Column(Integer)
+
+    __table_args__ = (Index("idx_playlist_position", "playlist_id", "position"),)
 
     playlist = relationship("Playlist", back_populates="videos")
 

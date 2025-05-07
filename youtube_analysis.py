@@ -65,12 +65,12 @@ def get_playlist_info(youtube, playlist_id):
 
 def get_playlist_videos(youtube, playlist_id):
     """Get all video IDs from a playlist."""
-    video_ids = []
+    videos = []
     next_page_token = None
 
     while True:
         request = youtube.playlistItems().list(
-            part="contentDetails",
+            part="snippet, contentDetails",
             maxResults=50,
             playlistId=playlist_id,
             pageToken=next_page_token,
@@ -78,13 +78,18 @@ def get_playlist_videos(youtube, playlist_id):
         response = request.execute()
 
         for item in response["items"]:
-            video_ids.append(item["contentDetails"]["videoId"])
+            videos.append(
+                {
+                    "video_id": item["contentDetails"]["videoId"],
+                    "position": item["snippet"]["position"],
+                }
+            )
 
         next_page_token = response.get("nextPageToken")
         if not next_page_token:
             break
 
-    return video_ids
+    return videos
 
 
 def get_video_details(youtube, video_ids):
@@ -104,6 +109,10 @@ def get_video_details(youtube, video_ids):
             video_data = {
                 "id": item["id"],
                 "title": item["snippet"]["title"],
+                "channel_name": item["snippet"]["channelTitle"],
+                "upload_date": datetime.datetime.fromisoformat(
+                    item["snippet"]["publishedAt"].replace("Z", "+00:00")
+                ),
                 "duration": isodate.parse_duration(
                     item["contentDetails"]["duration"]
                 ).total_seconds()
@@ -156,11 +165,14 @@ def get_or_analyze_playlist(playlist_id, force_refresh=False):
                 all_videos = [
                     {
                         "title": video.title,
+                        "channel_name": video.channel_name,
+                        "upload_date": video.upload_date,
                         "duration": video.duration,
                         "views": video.views,
                         "likes": video.likes,
                         "like_percentage": video.like_percentage,
                         "url": video.url,
+                        "position": video.position,
                     }
                     for video in existing_playlist.videos
                 ]
@@ -168,11 +180,14 @@ def get_or_analyze_playlist(playlist_id, force_refresh=False):
                 top_videos = [
                     {
                         "title": video.title,
+                        "channel_name": video.channel_name,
+                        "upload_date": video.upload_date,
                         "duration": video.duration,
                         "views": video.views,
                         "likes": video.likes,
                         "like_percentage": video.like_percentage,
                         "url": video.url,
+                        "position": video.position,
                     }
                     for video in existing_playlist.videos
                     if video.is_top
@@ -200,11 +215,29 @@ def get_or_analyze_playlist(playlist_id, force_refresh=False):
 
         youtube = get_authenticated_service()
         playlist_info = get_playlist_info(youtube, playlist_id)
-        video_ids = get_playlist_videos(youtube, playlist_id)
-        video_data = get_video_details(youtube, video_ids)
+
+        playlist_videos = get_playlist_videos(youtube, playlist_id)
+
+        video_ids = [video["video_id"] for video in playlist_videos]
+
+        video_details = get_video_details(youtube, video_ids)
+
+        video_details_dict = {video["id"]: video for video in video_details}
+
+        # Final list with position information included
+        ordered_videos = []
+        for playlist_item in playlist_videos:
+            video_id = playlist_item["video_id"]
+            if video_id in video_details_dict:
+                video_data = video_details_dict[video_id].copy()
+                video_data["position"] = playlist_item["position"]
+                ordered_videos.append(video_data)
+
+        # Sort by playlist position
+        ordered_videos.sort(key=lambda x: x["position"])
 
         # Analyze data
-        df = pd.DataFrame(video_data)
+        df = pd.DataFrame(ordered_videos)
         TOP_N_PERCENT = 11 / 100
 
         if len(df) == 0:
@@ -280,11 +313,14 @@ def get_or_analyze_playlist(playlist_id, force_refresh=False):
                 id=row["id"],
                 playlist_id=playlist_id,
                 title=row["title"],
+                channel_name=row["channel_name"],
+                upload_date=row["upload_date"],
                 duration=row["duration"],
                 views=row["views"],
                 likes=row["likes"],
                 like_percentage=row["like_percentage"],
                 url=row["url"],
+                position=row["position"],
                 is_top=row["is_top"],
             )
             session.add(new_video)
@@ -294,11 +330,31 @@ def get_or_analyze_playlist(playlist_id, force_refresh=False):
 
         # Return data
         top_videos = df[df["is_top"]][
-            ["title", "duration", "views", "likes", "like_percentage", "url"]
+            [
+                "title",
+                "channel_name",
+                "upload_date",
+                "duration",
+                "views",
+                "likes",
+                "like_percentage",
+                "url",
+                "position",
+            ]
         ].to_dict(orient="records")
 
         all_videos = df[
-            ["title", "duration", "views", "likes", "like_percentage", "url"]
+            [
+                "title",
+                "channel_name",
+                "upload_date",
+                "duration",
+                "views",
+                "likes",
+                "like_percentage",
+                "url",
+                "position",
+            ]
         ].to_dict(orient="records")
 
         # Add timestamps to playlist_info
@@ -333,11 +389,14 @@ def get_playlists():
             all_videos = [
                 {
                     "title": video.title,
+                    "channel_name": video.channel_name,
+                    "upload_date": str(video.upload_date),
                     "duration": video.duration,
                     "views": video.views,
                     "likes": video.likes,
                     "like_percentage": video.like_percentage,
                     "url": video.url,
+                    "position": video.position,
                     "is_top": video.is_top,
                 }
                 for video in playlist.videos
