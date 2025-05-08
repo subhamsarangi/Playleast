@@ -4,6 +4,7 @@ import datetime
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
 import isodate
+from sqlalchemy.exc import IntegrityError
 import pandas as pd
 
 from database import Playlist, Video, init_db, get_session
@@ -306,27 +307,39 @@ def get_or_analyze_playlist(playlist_id, force_refresh=False):
                 last_analyzed=now,
             )
             session.add(new_playlist)
+            session.commit()
 
         # Add all videos
         for _, row in df.iterrows():
-            new_video = Video(
-                id=row["id"],
-                playlist_id=playlist_id,
-                title=row["title"],
-                channel_name=row["channel_name"],
-                upload_date=row["upload_date"],
-                duration=row["duration"],
-                views=row["views"],
-                likes=row["likes"],
-                like_percentage=row["like_percentage"],
-                url=row["url"],
-                position=row["position"],
-                is_top=row["is_top"],
-            )
-            session.add(new_video)
+            try:
+                new_video = Video(
+                    id=row["id"],
+                    playlist_id=playlist_id,
+                    title=row["title"],
+                    channel_name=row["channel_name"],
+                    upload_date=row["upload_date"],
+                    duration=row["duration"],
+                    views=row["views"],
+                    likes=row["likes"],
+                    like_percentage=row["like_percentage"],
+                    url=row["url"],
+                    position=row["position"],
+                    is_top=row["is_top"],
+                )
+                session.add(new_video)
+                session.flush()
+            except IntegrityError:
+                session.rollback()
+                print(f"Skipping duplicate video: {row['id']} - {row['title']}")
+                continue
 
         # Commit changes
-        session.commit()
+        try:
+            session.commit()
+            print(f"Successfully added new videos to playlist {playlist_id}")
+        except Exception as e:
+            session.rollback()
+            print(f"Error committing changes: {e}")
 
         # Return data
         top_videos = df[df["is_top"]][
@@ -390,7 +403,7 @@ def get_playlists():
                 {
                     "title": video.title,
                     "channel_name": video.channel_name,
-                    "upload_date": str(video.upload_date),
+                    "upload_date": video.upload_date.strftime("%Y-%m-%d %H:%M"),
                     "duration": video.duration,
                     "views": video.views,
                     "likes": video.likes,
@@ -422,3 +435,33 @@ def get_playlists():
         except:
             pass
         raise e
+
+
+def delete_playlist(playlist_id):
+    try:
+        session = get_session(db_engine)
+        playlist = session.query(Playlist).filter(Playlist.id == playlist_id).first()
+
+        if not playlist:
+            session.close()
+            return True
+
+        # Delete all associated videos first
+        session.query(Video).filter(Video.playlist_id == playlist_id).delete()
+
+        # Delete the playlist
+        session.delete(playlist)
+
+        # Commit the changes
+        session.commit()
+        session.close()
+        return True
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        try:
+            session.close()
+        except:
+            pass
+        return False

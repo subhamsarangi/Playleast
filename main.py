@@ -7,7 +7,12 @@ from fastapi.templating import Jinja2Templates
 import requests
 from dotenv import load_dotenv
 
-from youtube_analysis import get_or_analyze_playlist, extract_playlist_id, get_playlists
+from youtube_analysis import (
+    get_or_analyze_playlist,
+    extract_playlist_id,
+    get_playlists,
+    delete_playlist,
+)
 
 app = FastAPI()
 
@@ -78,3 +83,16 @@ def show_playlist(request: Request, playlist_id: str, force_refresh: bool = Fals
         return templates.TemplateResponse(
             "index.html", {"request": request, "error": str(e)}
         )
+
+
+@app.get("/playlist/{playlist_id}/delete", response_class=RedirectResponse)
+def delete_playlist_view(playlist_id: str):
+    try:
+        print("Trying to delete... ")
+        delete_playlist(playlist_id)
+        return RedirectResponse(url="/", status_code=303)
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return RedirectResponse(url="/", status_code=303)
