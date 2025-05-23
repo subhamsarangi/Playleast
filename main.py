@@ -1,98 +1,17 @@
-import os
-
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI
 from fastapi.templating import Jinja2Templates
-import requests
-from dotenv import load_dotenv
+from fastapi.staticfiles import StaticFiles
 
-from youtube_analysis import (
-    get_or_analyze_playlist,
-    extract_playlist_id,
-    get_playlists,
-    delete_playlist,
-)
+from views import router as sync_router
 
 app = FastAPI()
-
 templates = Jinja2Templates(directory="templates")
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-load_dotenv()
+app.include_router(sync_router)
 
+if __name__ == "__main__":
+    import uvicorn
 
-@app.get("/", response_class=HTMLResponse)
-def index(request: Request):
-    playlists = get_playlists()
-    # URL = "http://127.0.0.1:8001/track/api/receive-playlists"
-    URL = os.environ.get("REMOTE_SERVER_URL")
-    try:
-        for pl in playlists:
-            response = requests.post(URL, json=pl)
-            response.raise_for_status()
-    except requests.RequestException as api_error:
-        print(f"Error sending playlists to API: {api_error}")
-
-    return templates.TemplateResponse(
-        "index.html", {"request": request, "playlists": playlists}
-    )
-
-
-@app.post("/analyze", response_class=HTMLResponse)
-def analyze(
-    request: Request, playlist_url: str = Form(...), force_refresh: bool = Form(False)
-):
-    try:
-        playlist_id = extract_playlist_id(playlist_url)
-        return RedirectResponse(
-            url=f"/playlist/{playlist_id}?force_refresh={force_refresh}",
-            status_code=303,
-        )
-
-    except Exception as e:
-        return templates.TemplateResponse(
-            "index.html", {"request": request, "error": str(e)}
-        )
-
-
-@app.get("/playlist/{playlist_id}", response_class=HTMLResponse)
-def show_playlist(request: Request, playlist_id: str, force_refresh: bool = False):
-    try:
-        # Fetch from database or run analysis if not found
-        result = get_or_analyze_playlist(playlist_id, force_refresh)
-
-        if "error" in result:
-            return templates.TemplateResponse(
-                "index.html", {"request": request, "error": result["error"]}
-            )
-
-        template_data = {
-            "request": request,
-            "top_videos": result["top_videos"],
-            "all_videos": result["all_videos"],
-            "playlist_url": result["playlist_info"]["url"],
-            "playlist_id": playlist_id,
-            "playlist_info": result["playlist_info"],
-            "from_cache": result.get("from_cache", False),
-        }
-
-        return templates.TemplateResponse("playlist.html", template_data)
-
-    except Exception as e:
-        return templates.TemplateResponse(
-            "index.html", {"request": request, "error": str(e)}
-        )
-
-
-@app.get("/playlist/{playlist_id}/delete", response_class=RedirectResponse)
-def delete_playlist_view(playlist_id: str):
-    try:
-        print("Trying to delete... ")
-        delete_playlist(playlist_id)
-        return RedirectResponse(url="/", status_code=303)
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        return RedirectResponse(url="/", status_code=303)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

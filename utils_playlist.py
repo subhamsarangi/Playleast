@@ -430,6 +430,9 @@ def get_playlists():
 
         return existing_playlist_info
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         try:
             session.close()
         except:

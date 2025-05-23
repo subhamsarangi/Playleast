@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync History - YouTube Playlist Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1>Sync History</h1>
+                <p class="text-muted">View all sync tasks and their status</p>
+            </div>
+            <div>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary me-2">
+                    <i class="bi bi-arrow-left"></i> Back to Playlists
+                </a>
+            </div>
+        </div>
+
+        <!-- Active Sync Alert -->
+        {% if active_task %}
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-2" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="flex-grow-1">
+                    <strong>Active Sync Task #{{ active_task.id }}</strong>
+                    <div>Status: {{ active_task.status | title }} - {{ active_task.processed_playlists }}/{{ active_task.total_playlists }} playlists processed</div>
+                </div>
+                {% if active_task.status in ['started', 'inprogress'] %}
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="window.location.href = window.location.pathname;">
+                    <i class="bi bi-stop-circle"></i> Refresh
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="abortSync({{ active_task.id }})">
+                    <i class="bi bi-stop-circle"></i> Abort
+                </button>
+                {% endif %}
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+
+        <!-- Sync Tasks Table -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-list-task"></i> All Sync Tasks
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                {% if sync_tasks %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Status</th>
+                                <th>Progress</th>
+                                <th>Started</th>
+                                <th>Duration</th>
+                                <th>Error</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in sync_tasks %}
+                            <tr class="{% if task.status == 'completed' %}table-success{% elif task.status == 'failed' %}table-danger{% elif task.status == 'aborted' %}table-warning{% elif task.status in ['started', 'inprogress'] %}table-info{% endif %}">
+                                <td>
+                                    <strong>#{{ task.id }}</strong>
+                                    {% if task.status in ['started', 'inprogress'] %}
+                                    <span class="badge bg-primary ms-1">Active</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if task.status == 'completed' %}
+                                        <i class="bi bi-check-circle-fill text-success"></i>
+                                    {% elif task.status == 'failed' %}
+                                        <i class="bi bi-x-circle-fill text-danger"></i>
+                                    {% elif task.status == 'aborted' %}
+                                        <i class="bi bi-stop-circle-fill text-warning"></i>
+                                    {% elif task.status == 'inprogress' %}
+                                        <i class="bi bi-arrow-clockwise text-primary"></i>
+                                    {% else %}
+                                        <i class="bi bi-play-circle text-info"></i>
+                                    {% endif %}
+                                    {{ task.status | title }}
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="progress flex-grow-1 me-2" style="height: 20px;">
+                                            {% set progress_percentage = (task.processed_playlists / task.total_playlists * 100) if task.total_playlists > 0 else 0 %}
+                                            <div class="progress-bar 
+                                                {% if task.status == 'completed' %}bg-success
+                                                {% elif task.status == 'failed' %}bg-danger
+                                                {% elif task.status == 'aborted' %}bg-warning
+                                                {% else %}bg-info{% endif %}" 
+                                                role="progressbar" 
+                                                style="width: {{ progress_percentage }}%">
+                                            </div>
+                                        </div>
+                                        <small class="text-nowrap">{{ task.processed_playlists }}/{{ task.total_playlists }}</small>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="text-nowrap">
+                                        <small>{{ task.started_at.strftime('%Y-%m-%d') }}</small><br>
+                                        <small class="text-muted">{{ task.started_at.strftime('%H:%M:%S') }}</small>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if task.completed_at %}
+                                        {% set duration = task.completed_at - task.started_at %}
+                                        <small>{{ duration.total_seconds() | int }}s</small>
+                                    {% elif task.status in ['started', 'inprogress'] %}
+                                        <small class="text-muted">Running...</small>
+                                    {% else %}
+                                        <small class="text-muted">-</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if task.error_message %}
+                                        <span class="text-danger" title="{{ task.error_message }}">
+                                            <i class="bi bi-exclamation-triangle"></i>
+                                            <small>{{ task.error_message[:30] }}{% if task.error_message|length > 30 %}...{% endif %}</small>
+                                        </span>
+                                    {% else %}
+                                        <small class="text-muted">-</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if task.status in ['started', 'inprogress'] %}
+                                        <button class="btn btn-sm btn-outline-danger" onclick="abortSync({{ task.id }})" title="Abort sync">
+                                            <i class="bi bi-stop-circle"></i>
+                                        </button>
+                                    {% else %}
+                                        <button class="btn btn-sm btn-outline-secondary" disabled title="No actions available">
+                                            <i class="bi bi-three-dots"></i>
+                                        </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-inbox display-1 text-muted"></i>
+                    <h3 class="text-muted mt-3">No sync tasks found</h3>
+                    <p class="text-muted">Start your first sync to see the history here.</p>
+                    <a href="{{ url_for('sync_playlists') }}" class="btn btn-primary">
+                        <i class="bi bi-arrow-clockwise"></i> Start Sync
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Summary Stats -->
+        {% if sync_tasks %}
+        <div class="row mt-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-primary">{{ sync_tasks | selectattr('status', 'equalto', 'completed') | list | length }}</h5>
+                        <p class="card-text text-muted">Completed</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-danger">{{ sync_tasks | selectattr('status', 'equalto', 'failed') | list | length }}</h5>
+                        <p class="card-text text-muted">Failed</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-warning">{{ sync_tasks | selectattr('status', 'equalto', 'aborted') | list | length }}</h5>
+                        <p class="card-text text-muted">Aborted</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title text-info">{{ sync_tasks | selectattr('status', 'in', ['started', 'inprogress']) | list | length }}</h5>
+                        <p class="card-text text-muted">Active</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        async function abortSync(taskId) {
+            if (!confirm('Are you sure you want to abort this sync task?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/sync/abort/${taskId}`, {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    // Disable the abort button
+                    const abortBtn = document.querySelector(`button[onclick="abortSync(${taskId})"]`);
+                    if (abortBtn) {
+                        abortBtn.disabled = true;
+                        abortBtn.innerHTML = '<i class="bi bi-hourglass"></i>';
+                    }
+
+                    // Show success message
+                    showAlert('Sync abort request sent. The task will stop shortly.', 'success');
+
+                    // Refresh page after a short delay
+                    setTimeout(() => {
+                        window.location.href = window.location.pathname;
+                    }, 2000);
+                } else {
+                    const error = await response.json();
+                    showAlert(`Failed to abort sync: ${error.detail}`, 'danger');
+                }
+            } catch (error) {
+                console.error('Error aborting sync:', error);
+                showAlert('Error sending abort request. Please try again.', 'danger');
+            }
+        }
+
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+
+            const container = document.querySelector('.container');
+            container.insertBefore(alertDiv, container.firstChild.nextSibling);
+
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
