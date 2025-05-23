@@ -18,7 +18,7 @@
 - Add Test user which will be used in the OAuth Consent Screen here: https://console.cloud.google.com/auth/audience
 
 ## Run it
-`uvicorn main:app --reload`
+`python main.py`
 
 ## Usage
 <img src="homepage1.png" width="600">

@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <style>
         body {
-            background-color: #f8f9fa;
+            background-color: #12061a;
         }
         .container {
             margin-top: 40px;
@@ -20,8 +20,11 @@
         #site_name a{
             font-weight: bold;
             font-family: 'Courier New', Courier, monospace;
-            color: #270909;
+            color: #e3cbff;
             text-decoration: none;
+        }
+        label, h3{
+            color: #aaa;
         }
         .playlist-grid {
             display: grid;
@@ -34,10 +37,10 @@
             border: 1px solid #ccc;
             border-radius: 8px;
             padding: 1rem;
-            background-color: #f9f9f9;
+            background-color: #faefffd5;
         }
         .playlist-card a{
-            color: #a70d0d;
+            color: #1e1f49;
         }
     </style>
 </head>
@@ -45,8 +48,8 @@
 <div class="container">
     <h2 id="site_name" class="mb-4">
         <a href="/">YouTube Playlist Video Analysis</a>
-        <a href="{{ url_for('sync_playlists') }}" class="btn btn-primary me-2" id="syncBtn">
-            <i class="bi bi-arrow-clockwise"></i> Sync
+        <a href="{{ url_for('sync_playlists') }}" class="btn btn-outline-secondary me-2" id="syncBtn">
+            <i class="bi bi-arrow-clockwise"></i>
         </a>
         <a href="{{ url_for('sync_history') }}" class="btn btn-outline-secondary">
             <i class="bi bi-clock-history"></i> History
